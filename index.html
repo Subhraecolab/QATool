@@ -92,7 +92,7 @@
                 <p>DESIGN & COPYWRITING QUALITY ANALYTICS ENGINE</p>
             </div>
             <div>
-                <span id="data-status-badge" style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">Loaded Consolidated Dataset</span>
+                <span id="data-status-badge" style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">Excel Online Connected</span>
             </div>
         </header>
 
@@ -431,6 +431,10 @@
     <div id="notification" class="notification"></div>
 
     <script>
+        // ================= CONFIGURATION =================
+        // Replace the string below with your copied Power Automate Webhook URL
+        const POWER_AUTOMATE_URL = "PASTE_YOUR_COPIED_POWER_AUTOMATE_URL_HERE";
+
         // Structural Group & BU Map
         const structuralGroupBUMap = {
             "Global Water": ["Global Chemical", "Basic Industries - Global Power", "Basic Industries - Global Primary Metals", "Manufacturing - Institutional", "Manufacturing - Transportation / Manufacturing", "Manufacturing - Municipal", "Manufacturing - Water Purity Solutions", "Downstream", "Basic Industries - Global Mining", "Textile Care", "High Tech", "Water Services", "Global Water - Other", "Paper", "Food and Beverage", "Animal Health", "Digital Commercial (Global Water)"],
@@ -612,7 +616,8 @@
             document.getElementById(errorId).innerText = totalErrors;
         }
 
-        function submitQA(typeIndex) {
+        // ================= UPDATED SUBMIT FUNCTION (SUPPORTS LOCAL FILE & NO-CORS EXECUTION) =================
+        async function submitQA(typeIndex) {
             const prefix = typeIndex === 0 ? 'd-' : 'c-';
             const funcName = typeIndex === 0 ? 'Design' : 'Copy';
 
@@ -631,6 +636,11 @@
                 return;
             }
 
+            if (POWER_AUTOMATE_URL.includes("PASTE_YOUR_COPIED_POWER_AUTOMATE_URL_HERE")) {
+                showNotification('⚠️ Please replace the placeholder Webhook URL in your index.html file!');
+                return;
+            }
+
             const record = {
                 id: projId,
                 projectName: projName,
@@ -646,13 +656,30 @@
                 comments: errors === 0 ? 'Zero defects recorded.' : `${errors} quality issue(s) flagged.`
             };
 
-            const existing = JSON.parse(localStorage.getItem("qa_master_db") || "[]");
-            existing.unshift(record);
-            localStorage.setItem("qa_master_db", JSON.stringify(existing));
+            showNotification('Saving record to Excel Online...');
 
-            loadMasterData();
-            showNotification('QA Record successfully logged to Master Database!');
-            resetForm(typeIndex);
+            try {
+                // Using mode: 'no-cors' allows submission directly from local files (file:///)
+                await fetch(POWER_AUTOMATE_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(record)
+                });
+
+                showNotification('✅ QA Record successfully sent to Excel Online!');
+
+                // Update local storage so the session UI updates immediately
+                const existing = JSON.parse(localStorage.getItem("qa_master_db") || "[]");
+                existing.unshift(record);
+                localStorage.setItem("qa_master_db", JSON.stringify(existing));
+                loadMasterData();
+
+                resetForm(typeIndex);
+            } catch (err) {
+                console.error('Submission Error:', err);
+                showNotification('❌ Network error. Check your Webhook URL or internet connection.');
+            }
         }
 
         function resetForm(typeIndex) {
